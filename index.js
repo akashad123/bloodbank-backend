@@ -16,6 +16,7 @@ const adminRoutes = require('./src/routes/admin');
 const chatbotRoutes = require('./src/routes/chatbot');
 const notificationRoutes = require('./src/routes/notifications');
 const hospitalRoutes = require('./src/routes/hospitals');
+const certificateRoutes = require('./src/routes/certificates');
 
 // ─── App Init ─────────────────────────────────────────────────────────
 const app = express();
@@ -72,7 +73,7 @@ app.use(express.urlencoded({ extended: true }));
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: process.env.NODE_ENV === 'production' ? 200 : 10000,
   message: { message: 'Too many requests, please try again later.' },
 });
 app.use('/api/', limiter);
@@ -85,6 +86,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/hospitals', hospitalRoutes);
+app.use('/api/certificates', certificateRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -108,5 +110,5 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`\n🚀 BloodBank Server running on http://localhost:${PORT}`);
   console.log(`📡 Socket.io listening on port ${PORT}`);
-  console.log(`🏥 Kerala Blood Donation Platform — Ready!\n`);
+  console.log(`🏥 DYFI Mokeri East MC — Ready and Online!\n`);
 });

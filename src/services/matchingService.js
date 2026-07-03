@@ -14,7 +14,7 @@ const matchAndNotify = async (request, io) => {
       district: request.district,
       isEligible: true,
       availabilityStatus: true,
-      role: 'user',
+      role: 'donor',
     });
 
     if (donors.length === 0) {
@@ -29,7 +29,7 @@ const matchAndNotify = async (request, io) => {
     // Create in-app notifications + send WhatsApp/SMS for each donor
     const urgencyLabel = request.urgency === 'emergency' ? '🚨 EMERGENCY' : '🩸 Blood Request';
     const notificationTitle = `${urgencyLabel} — ${request.bloodGroup} Needed`;
-    const notificationMessage = `${request.units} unit(s) of ${request.bloodGroup} blood urgently needed at ${request.hospital}, ${request.district}. Contact: ${request.contactName} (${request.contactPhone}).`;
+    const notificationMessage = `${request.units} unit(s) of ${request.bloodGroup} blood urgently needed at ${request.hospital}, ${request.district}. Please coordinate with DYFI Mokeri East MC volunteers.`;
 
     const notifDocs = donors.map((donor) => ({
       recipient: donor._id,

@@ -32,20 +32,22 @@ const sendWhatsAppAlert = async (phone, data) => {
 
   const urgencyTag = urgency === 'emergency' ? '🚨 EMERGENCY ALERT' : '🩸 Blood Donation Request';
 
-  const messageBody = `${urgencyTag} — BloodBank Kerala
+  const messageBody = `${urgencyTag} — RedConnect DYFI Mokeri East
 
 Hello ${donorName},
 
 *${units} unit(s) of ${bloodGroup} blood* needed urgently at:
 🏥 *${hospital}*, ${district}
 
-Contact: ${contactName}
-📞 ${contactPhone}
+To coordinate, please contact DYFI Coordinators:
+📞 Rahul Tacholi — 9946709455
+📞 Abhinav PP — 8606839418
+📞 Shinantu — 8086849291
 
 Please respond if you are available to donate.
 Your help can save a life. 🙏
 
-— RedConnect, BloodBank Kerala`;
+— RedConnect, DYFI Mokeri East MC`;
 
   try {
     const whatsappTo = `whatsapp:+91${phone}`;
@@ -77,7 +79,7 @@ const sendSMSAlert = async (phone, data) => {
   const { bloodGroup, units, hospital, district, contactPhone, urgency } = data;
   const urgencyTag = urgency === 'emergency' ? 'EMERGENCY' : 'Request';
 
-  const messageBody = `BloodBank Kerala ${urgencyTag}: ${units}u of ${bloodGroup} needed at ${hospital}, ${district}. Call: ${contactPhone}. Reply to donate.`;
+  const messageBody = `RedConnect DYFI: ${units}u of ${bloodGroup} needed at ${hospital}, ${district}. Coordinate via DYFI coordinators: Rahul Tacholi (9946709455), Abhinav PP (8606839418).`;
 
   try {
     const result = await twilioClient.messages.create({

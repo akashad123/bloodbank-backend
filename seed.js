@@ -11,9 +11,16 @@ const seedAdmins = async () => {
 
     const password = process.env.ADMIN_SEED_PASSWORD || 'Admin@123';
 
-    for (const district of KERALA_DISTRICTS) {
+    for (let i = 0; i < KERALA_DISTRICTS.length; i++) {
+      const district = KERALA_DISTRICTS[i];
       const emailSlug = district.toLowerCase().replace(/\s+/g, '');
       const email = `admin.${emailSlug}@bloodbank.kerala`;
+
+      // Each district admin gets a unique phone number (9000000001 to 9000000014)
+      // Pad index+1 to ensure valid Indian mobile format starting with 9
+      const phone = `900000000${String(i + 1).padStart(1, '0')}`;
+      // For i >= 9: 9000000010 etc.
+      const adminPhone = i < 9 ? `900000000${i + 1}` : `90000000${i + 1}`;
 
       const existing = await User.findOne({ email });
       if (existing) {
@@ -21,25 +28,33 @@ const seedAdmins = async () => {
         continue;
       }
 
+      // Check if phone already taken (re-seed safety)
+      const phoneExists = await User.findOne({ phone: adminPhone });
+      if (phoneExists) {
+        console.log(`⏭  Phone already in use for: ${district}`);
+        continue;
+      }
+
       await User.create({
         name: `${district} Admin`,
         email,
-        phone: '9000000000',
-        passwordHash: password, // pre-save hook hashes it
+        phone: adminPhone,
+        passwordHash: password, // pre-save hook hashes this
         role: 'admin',
         bloodGroup: 'O+',
         district,
       });
 
-      console.log(`✅ Created admin: ${email}`);
+      console.log(`✅ Created admin: ${email} | Phone: ${adminPhone}`);
     }
 
     console.log('\n🎉 All 14 district admins seeded!');
     console.log(`🔑 Password for all: ${password}`);
-    console.log('\nAdmin Emails:');
-    KERALA_DISTRICTS.forEach((d) => {
+    console.log('\nAdmin Login Credentials:');
+    KERALA_DISTRICTS.forEach((d, i) => {
       const slug = d.toLowerCase().replace(/\s+/g, '');
-      console.log(`  admin.${slug}@bloodbank.kerala`);
+      const phone = i < 9 ? `900000000${i + 1}` : `90000000${i + 1}`;
+      console.log(`  ${d}: admin.${slug}@bloodbank.kerala | Phone: ${phone}`);
     });
 
     process.exit(0);

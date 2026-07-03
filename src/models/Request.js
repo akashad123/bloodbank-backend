@@ -10,7 +10,7 @@ const requestSchema = new mongoose.Schema(
     urgency: { type: String, enum: ['normal', 'emergency'], default: 'normal' },
     status: {
       type: String,
-      enum: ['pending', 'assigned', 'fulfilled'],
+      enum: ['pending', 'assigned', 'accepted', 'completed', 'fulfilled'],
       default: 'pending',
     },
     contactName: { type: String, required: true, trim: true },

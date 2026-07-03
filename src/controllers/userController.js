@@ -9,7 +9,7 @@ const getDonors = async (req, res) => {
   try {
     const { district, bloodGroup, eligibleOnly } = req.query;
 
-    const query = { role: 'user' };
+    const query = { role: 'donor' };
 
     // Admin sees only their district unless super-querying
     if (req.user.role === 'admin') {
@@ -23,7 +23,16 @@ const getDonors = async (req, res) => {
 
     const donors = await User.find(query).select('-passwordHash').sort({ name: 1 });
 
-    res.json({ donors, count: donors.length });
+    // Sanitize phone numbers for non-admins to prevent direct user-to-user exposure
+    const sanitizedDonors = donors.map((d) => {
+      const obj = d.toSafeObject ? d.toSafeObject() : d.toObject();
+      if (req.user.role !== 'admin') {
+        obj.phone = 'Admin Mediated';
+      }
+      return obj;
+    });
+
+    res.json({ donors: sanitizedDonors, count: sanitizedDonors.length });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching donors' });
   }
@@ -35,7 +44,7 @@ const updateProfile = [
   body('phone').optional().matches(/^[6-9]\d{9}$/),
   body('bloodGroup').optional().notEmpty(),
   body('district').optional().notEmpty(),
-  body('lastDonationDate').optional().isISO8601(),
+  body('lastDonationDate').optional({ values: 'falsy' }).isISO8601(),
   validate,
   async (req, res) => {
     try {
@@ -46,7 +55,12 @@ const updateProfile = [
 
       if (name) user.name = name;
       if (phone) user.phone = phone;
-      if (bloodGroup) user.bloodGroup = bloodGroup;
+      if (bloodGroup) {
+        user.bloodGroup = bloodGroup;
+        if (user.role === 'requester') {
+          user.role = 'donor';
+        }
+      }
       if (district) user.district = district;
       if (lastDonationDate !== undefined) user.lastDonationDate = lastDonationDate || null;
       if (whatsappEnabled !== undefined) user.whatsappEnabled = whatsappEnabled;

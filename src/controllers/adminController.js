@@ -9,17 +9,17 @@ const getAnalytics = async (req, res) => {
 
     const [totalDonors, eligibleDonors, pendingRequests, approvedRequests, fulfilledRequests, totalRequests] =
       await Promise.all([
-        User.countDocuments({ district, role: 'user' }),
-        User.countDocuments({ district, role: 'user', isEligible: true, availabilityStatus: true }),
+        User.countDocuments({ district, role: 'donor' }),
+        User.countDocuments({ district, role: 'donor', isEligible: true, availabilityStatus: true }),
         Request.countDocuments({ district, status: 'pending' }),
-        Request.countDocuments({ district, status: 'approved' }),
+        Request.countDocuments({ district, status: { $in: ['assigned', 'accepted', 'completed'] } }),
         Request.countDocuments({ district, status: 'fulfilled' }),
         Request.countDocuments({ district }),
       ]);
 
     // Blood group breakdown
     const bloodGroupBreakdown = await User.aggregate([
-      { $match: { district, role: 'user', isEligible: true } },
+      { $match: { district, role: 'donor', isEligible: true } },
       { $group: { _id: '$bloodGroup', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
@@ -53,12 +53,22 @@ const getAnalytics = async (req, res) => {
 // ─── GET /api/admin/users ─────────────────────────────────────────────
 const getUsers = async (req, res) => {
   try {
-    const { bloodGroup, eligibleOnly, page = 1, limit = 20 } = req.query;
+    const { bloodGroup, eligibleOnly, screeningStatus, page = 1, limit = 20 } = req.query;
     const skip = (page - 1) * limit;
 
-    const query = { district: req.user.district };
+    const query = { district: req.user.district, role: 'donor' };
     if (bloodGroup) query.bloodGroup = bloodGroup;
     if (eligibleOnly === 'true') { query.isEligible = true; query.availabilityStatus = true; }
+
+    // Filter by pre-screening eligibility status
+    if (screeningStatus === 'eligible') {
+      query['donorEligibility.eligibilityStatus'] = 'eligible';
+    } else if (screeningStatus === 'ineligible') {
+      query['donorEligibility.eligibilityStatus'] = 'ineligible';
+    } else if (screeningStatus === 'none') {
+      // Users who have not completed screening (null or missing subdocument)
+      query['donorEligibility.eligibilityStatus'] = null;
+    }
 
     const [users, total] = await Promise.all([
       User.find(query).select('-passwordHash').sort({ name: 1 }).skip(skip).limit(Number(limit)),
