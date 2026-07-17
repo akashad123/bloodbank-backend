@@ -82,7 +82,7 @@ const register = [
       // Auto-generate a strong random password — user never sees this
       const internalPassword = generateInternalPassword();
 
-      const userRole = donorEligibility ? 'donor' : 'requester';
+      const userRole = 'user';
 
       const user = await User.create({
         name: name.trim(),

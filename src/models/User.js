@@ -24,7 +24,7 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
 
     // ─── Role & Permissions ────────────────────────────────────────────
-    role: { type: String, enum: ['user', 'donor', 'requester', 'admin'], default: 'donor' },
+    role: { type: String, enum: ['user', 'donor', 'requester', 'admin'], default: 'user' },
 
     // ─── Donor Profile (optional at registration, can be updated later) ─
     bloodGroup: { type: String, enum: [...BLOOD_GROUPS, null], default: null },
@@ -32,7 +32,8 @@ const userSchema = new mongoose.Schema(
 
     // ─── Donation Tracking ─────────────────────────────────────────────
     lastDonationDate: { type: Date, default: null },
-    isEligible: { type: Boolean, default: true },
+    isQualifiedDonor: { type: Boolean, default: false },
+    isEligibleToDonate: { type: Boolean, default: false },
 
     // ─── Availability & Notifications ──────────────────────────────────
     availabilityStatus: { type: Boolean, default: true },
@@ -78,31 +79,38 @@ userSchema.pre('save', async function () {
   }
 
   // Recalculate donation eligibility based on screening and last donation date
-  if (this.role !== 'donor') {
-    this.isEligible = false;
+  if (this.role === 'admin') {
+    this.isQualifiedDonor = false;
+    this.isEligibleToDonate = false;
     this.donorStatus = null;
   } else {
     const screeningStatus = this.donorEligibility?.eligibilityStatus;
 
     if (!screeningStatus) {
-      this.isEligible = false;
+      this.isQualifiedDonor = false;
+      this.isEligibleToDonate = false;
       this.donorStatus = 'Pending Screening';
     } else if (screeningStatus === 'ineligible') {
-      this.isEligible = false;
+      this.isQualifiedDonor = false;
+      this.isEligibleToDonate = false;
       this.donorStatus = 'Screening Failed';
     } else if (screeningStatus === 'eligible') {
+      this.isQualifiedDonor = true;
+      
       if (!this.lastDonationDate) {
-        this.isEligible = false;
-        this.donorStatus = 'Eligibility Unknown';
+        this.isEligibleToDonate = true;
+        this.donorStatus = 'Eligible to Donate';
       } else {
         const today = new Date();
+        today.setHours(0, 0, 0, 0);
         const last = new Date(this.lastDonationDate);
-        const diffDays = Math.floor((today - last) / (1000 * 60 * 60 * 24));
+        last.setHours(0, 0, 0, 0);
+        const diffDays = Math.floor((today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
         if (diffDays < ELIGIBILITY_GAP_DAYS) {
-          this.isEligible = false;
+          this.isEligibleToDonate = false;
           this.donorStatus = 'Waiting Period Active';
         } else {
-          this.isEligible = true;
+          this.isEligibleToDonate = true;
           this.donorStatus = 'Eligible to Donate';
         }
       }

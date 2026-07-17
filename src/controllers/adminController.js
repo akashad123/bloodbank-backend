@@ -7,19 +7,19 @@ const getAnalytics = async (req, res) => {
   try {
     const district = req.user.district;
 
-    const [totalDonors, eligibleDonors, pendingRequests, approvedRequests, fulfilledRequests, totalRequests] =
+    const [totalDonors, eligibleDonors, activeRequests, inactiveRequests, fulfilledRequests, totalRequests] =
       await Promise.all([
-        User.countDocuments({ district, role: 'donor' }),
-        User.countDocuments({ district, role: 'donor', isEligible: true, availabilityStatus: true }),
-        Request.countDocuments({ district, status: 'pending' }),
-        Request.countDocuments({ district, status: { $in: ['assigned', 'accepted', 'completed'] } }),
+        User.countDocuments({ district, isQualifiedDonor: true }),
+        User.countDocuments({ district, isEligibleToDonate: true, availabilityStatus: true }),
+        Request.countDocuments({ district, status: { $in: ['pending', 'assigned', 'accepted', 'completed'] } }),
+        Request.countDocuments({ district, status: { $in: ['fulfilled', 'cancelled'] } }),
         Request.countDocuments({ district, status: 'fulfilled' }),
         Request.countDocuments({ district }),
       ]);
 
     // Blood group breakdown
     const bloodGroupBreakdown = await User.aggregate([
-      { $match: { district, role: 'donor', isEligible: true } },
+      { $match: { district, isEligibleToDonate: true } },
       { $group: { _id: '$bloodGroup', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
@@ -35,9 +35,8 @@ const getAnalytics = async (req, res) => {
       stats: {
         totalDonors,
         eligibleDonors,
-        pendingRequests,
-        approvedRequests,
-        fulfilledRequests,
+        activeRequests,
+        inactiveRequests,
         totalRequests,
         fulfillmentRate: totalRequests > 0 ? ((fulfilledRequests / totalRequests) * 100).toFixed(1) : 0,
       },
@@ -56,9 +55,9 @@ const getUsers = async (req, res) => {
     const { bloodGroup, eligibleOnly, screeningStatus, page = 1, limit = 20 } = req.query;
     const skip = (page - 1) * limit;
 
-    const query = { district: req.user.district, role: 'donor' };
+    const query = { district: req.user.district, isQualifiedDonor: true };
     if (bloodGroup) query.bloodGroup = bloodGroup;
-    if (eligibleOnly === 'true') { query.isEligible = true; query.availabilityStatus = true; }
+    if (eligibleOnly === 'true') { query.isEligibleToDonate = true; query.availabilityStatus = true; }
 
     // Filter by pre-screening eligibility status
     if (screeningStatus === 'eligible') {

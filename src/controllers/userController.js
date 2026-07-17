@@ -9,7 +9,7 @@ const getDonors = async (req, res) => {
   try {
     const { district, bloodGroup, eligibleOnly } = req.query;
 
-    const query = { role: 'donor' };
+    const query = { isQualifiedDonor: true };
 
     // Admin sees only their district unless super-querying
     if (req.user.role === 'admin') {
@@ -19,7 +19,7 @@ const getDonors = async (req, res) => {
     }
 
     if (bloodGroup) query.bloodGroup = bloodGroup;
-    if (eligibleOnly === 'true') query.isEligible = true;
+    if (eligibleOnly === 'true') query.isEligibleToDonate = true;
 
     const donors = await User.find(query).select('-passwordHash').sort({ name: 1 });
 

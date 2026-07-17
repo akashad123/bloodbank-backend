@@ -9,12 +9,17 @@ const twilioService = require('./twilioService');
 const matchAndNotify = async (request, io) => {
   try {
     // Find matching donors
+    const districtRegex = new RegExp(`^${request.district.trim()}$`, 'i');
+    
+    let bgQuery = request.bloodGroup;
+    if (bgQuery === 'AB Positive' || bgQuery === 'AB_POSITIVE') bgQuery = 'AB+';
+
     const donors = await User.find({
-      bloodGroup: request.bloodGroup,
-      district: request.district,
-      isEligible: true,
+      bloodGroup: bgQuery,
+      district: districtRegex,
+      isQualifiedDonor: true,
+      isEligibleToDonate: true,
       availabilityStatus: true,
-      role: 'donor',
     });
 
     if (donors.length === 0) {

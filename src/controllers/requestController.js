@@ -124,9 +124,8 @@ const createRequest = [
         const donors = await User.find({
           bloodGroup: request.bloodGroup,
           district: request.district,
-          isEligible: true,
+          isEligibleToDonate: true,
           availabilityStatus: true,
-          role: 'donor',
           _id: { $ne: req.user._id }, // exclude requester themselves
         }).select('_id name phone whatsappEnabled');
 
@@ -719,18 +718,55 @@ const getRequestMatches = async (req, res) => {
     }
 
     // Otherwise run a live query
+    // Normalize district and blood group for robust matching
+    // Using RegExp for case-insensitive matching in case of data inconsistencies
+    const districtRegex = new RegExp(`^${request.district.trim()}$`, 'i');
+    
+    // For blood group, we might have things like "AB Positive", so let's use exact match but case-insensitive
+    // The strict enum should protect us, but this ensures safety against bad data
+    let bgQuery = request.bloodGroup;
+    if (bgQuery === 'AB Positive' || bgQuery === 'AB_POSITIVE') bgQuery = 'AB+';
+    
     const donors = await User.find({
-      bloodGroup: request.bloodGroup,
-      district: request.district,
-      isEligible: true,
+      bloodGroup: bgQuery,
+      district: districtRegex,
+      isQualifiedDonor: true,
+      isEligibleToDonate: true,
       availabilityStatus: true,
-      role: 'donor',
-    }).select('name phone bloodGroup district isEligible availabilityStatus');
+    }).select('name phone bloodGroup district isQualifiedDonor isEligibleToDonate availabilityStatus');
 
     res.json({ donors, total: donors.length });
   } catch (error) {
     console.error('Get matches error:', error);
     res.status(500).json({ message: 'Error fetching matched donors' });
+  }
+};
+
+// ─── PUT /api/requests/:id/cancel ────────────────────────────────────────────
+const cancelRequest = async (req, res) => {
+  try {
+    const request = await Request.findById(req.params.id);
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+
+    const isOwner = request.createdBy.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: 'Not authorized to cancel this request' });
+    }
+
+    if (isAdmin && req.user.district !== request.district) {
+      return res.status(403).json({ message: 'Not authorized for this district' });
+    }
+
+    request.status = 'cancelled';
+    request.closureReason = req.body.reason || 'Request cancelled by user';
+    await request.save();
+
+    res.json({ message: 'Request marked as cancelled', request });
+  } catch (error) {
+    console.error('Cancel request error:', error);
+    res.status(500).json({ message: 'Error cancelling request' });
   }
 };
 
@@ -749,4 +785,5 @@ module.exports = {
   rejectRequest,
   completeRequest,
   verifyRequestCompletion,
+  cancelRequest,
 };

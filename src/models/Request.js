@@ -10,7 +10,7 @@ const requestSchema = new mongoose.Schema(
     urgency: { type: String, enum: ['normal', 'emergency'], default: 'normal' },
     status: {
       type: String,
-      enum: ['pending', 'assigned', 'accepted', 'completed', 'fulfilled'],
+      enum: ['pending', 'assigned', 'accepted', 'completed', 'fulfilled', 'cancelled'],
       default: 'pending',
     },
     contactName: { type: String, required: true, trim: true },
@@ -22,6 +22,7 @@ const requestSchema = new mongoose.Schema(
     assignedAt: { type: Date, default: null },
     adminNote: { type: String, default: null },
     fulfilledAt: { type: Date, default: null },
+    closureReason: { type: String, default: null, trim: true },
   },
   { timestamps: true }
 );

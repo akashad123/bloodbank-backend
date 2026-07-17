@@ -3,7 +3,7 @@ const router = express.Router();
 const {
   createRequest, getRequests, getRequest, getMyRequests,
   updateRequest, deleteRequest, updateRequestStatus, assignDonor, getRequestMatches,
-  getAssignedRequests, acceptRequest, rejectRequest, completeRequest, verifyRequestCompletion,
+  getAssignedRequests, acceptRequest, rejectRequest, completeRequest, verifyRequestCompletion, cancelRequest,
 } = require('../controllers/requestController');
 const { protect, requireAdmin } = require('../middleware/auth');
 
@@ -27,6 +27,7 @@ router.put('/:id/accept', protect, acceptRequest);
 router.put('/:id/reject', protect, rejectRequest);
 router.put('/:id/complete', protect, completeRequest);
 router.put('/:id/verify', protect, requireAdmin, verifyRequestCompletion);
+router.put('/:id/cancel', protect, cancelRequest);
 
 module.exports = router;
 
