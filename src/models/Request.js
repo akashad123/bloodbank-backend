@@ -19,6 +19,8 @@ const requestSchema = new mongoose.Schema(
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     matchedDonors: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     assignedDonor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    assignedDonorName: { type: String, default: null },
+    assignedDonorPhone: { type: String, default: null },
     assignedAt: { type: Date, default: null },
     adminNote: { type: String, default: null },
     fulfilledAt: { type: Date, default: null },

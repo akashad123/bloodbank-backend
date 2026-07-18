@@ -95,4 +95,105 @@ const toggleUserAvailability = async (req, res) => {
   }
 };
 
-module.exports = { getAnalytics, getUsers, toggleUserAvailability };
+// ─── GET /api/admin/all-users ─────────────────────────────────────────
+const getAllUsers = async (req, res) => {
+  try {
+    const { search, bloodGroup, donorStatus, eligibility, page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const query = { 
+      district: req.user.district,
+      role: { $nin: ['admin', 'super_admin', 'district_admin'] } 
+    };
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (bloodGroup) query.bloodGroup = bloodGroup;
+
+    if (donorStatus === 'qualified') query.isQualifiedDonor = true;
+    else if (donorStatus === 'not_qualified') query.isQualifiedDonor = false;
+
+    if (eligibility === 'eligible') query.isEligibleToDonate = true;
+    else if (eligibility === 'waiting') query.donorStatus = 'Waiting Period Active';
+    else if (eligibility === 'not_eligible') {
+      query.isEligibleToDonate = false;
+      query.donorStatus = { $ne: 'Waiting Period Active' };
+    }
+
+    const [users, total] = await Promise.all([
+      User.find(query).select('-passwordHash').sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+      User.countDocuments(query),
+    ]);
+
+    res.json({ users, total, page: Number(page), pages: Math.ceil(total / limit) });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching users' });
+  }
+};
+
+// ─── DELETE /api/admin/all-users/:id ──────────────────────────────────
+const deleteUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const district = req.user.district;
+
+    const userToDelete = await User.findOne({ _id: userId, district });
+    if (!userToDelete) {
+      return res.status(404).json({ message: 'User not found in your district' });
+    }
+
+    if (['admin', 'super_admin', 'district_admin'].includes(userToDelete.role)) {
+      return res.status(403).json({ message: 'Cannot delete administrator accounts' });
+    }
+
+    // Validation: Check for active requests created by or assigned to this user
+    const activeStatuses = ['pending', 'assigned', 'accepted', 'completed'];
+    
+    const activeRequests = await Request.findOne({
+      $or: [
+        { createdBy: userId, status: { $in: activeStatuses } },
+        { assignedDonor: userId, status: { $in: activeStatuses } }
+      ]
+    });
+
+    if (activeRequests) {
+      return res.status(400).json({ 
+        message: 'Cannot delete user. User is involved in an active blood request workflow.' 
+      });
+    }
+
+    // Preserve historical donor references in fulfilled/cancelled requests
+    await Request.updateMany(
+      { assignedDonor: userId },
+      { 
+        $set: { 
+          assignedDonorName: userToDelete.name,
+          assignedDonorPhone: userToDelete.phone
+        }
+      }
+    );
+
+    // Note: Request.createdBy historical requests are naturally preserved 
+    // by Request.contactName and Request.contactPhone.
+
+    // Delete associated Notification and Certificate records
+    const Certificate = require('../models/Certificate');
+    await Notification.deleteMany({ recipient: userId });
+    await Certificate.deleteMany({ donorId: userId });
+
+    // Finally, delete the user account
+    await User.findByIdAndDelete(userId);
+
+    res.json({ message: 'User deleted successfully.' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ message: 'Error deleting user' });
+  }
+};
+
+module.exports = { getAnalytics, getUsers, toggleUserAvailability, getAllUsers, deleteUser };
