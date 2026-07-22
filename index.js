@@ -17,21 +17,42 @@ const chatbotRoutes = require('./src/routes/chatbot');
 const notificationRoutes = require('./src/routes/notifications');
 const hospitalRoutes = require('./src/routes/hospitals');
 const certificateRoutes = require('./src/routes/certificates');
+const settingsRoutes = require('./src/routes/settings');
 
 // ─── App Init ─────────────────────────────────────────────────────────
 const app = express();
 const server = http.createServer(app);
 
+// ✅ Validate Production Environment Variables
+if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+  console.error('❌ WARNING: FRONTEND_URL environment variable is missing in production.');
+  console.error('CORS and Socket.IO origin validation may fail for production clients.');
+}
+
 // ✅ DEFINE FIRST (IMPORTANT)
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:5173'
-];
+const dynamicCorsOrigin = (origin, callback) => {
+  if (!origin) return callback(null, true);
+  
+  const allowedProductionOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.CLIENT_URL // Keep for backward compatibility if set
+  ].filter(Boolean);
+
+  if (allowedProductionOrigins.includes(origin)) {
+    return callback(null, true);
+  }
+
+  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    return callback(null, true);
+  }
+
+  return callback(new Error('Not allowed by CORS'), false);
+};
 
 // ─── Socket.io ────────────────────────────────────────────────────────
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: dynamicCorsOrigin,
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -60,10 +81,7 @@ connectDB();
 app.use(helmet());
 
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://bloodbank-frontend-eugr.onrender.com"
-  ],
+  origin: dynamicCorsOrigin,
   credentials: true
 }));
 
@@ -87,6 +105,7 @@ app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/hospitals', hospitalRoutes);
 app.use('/api/certificates', certificateRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
