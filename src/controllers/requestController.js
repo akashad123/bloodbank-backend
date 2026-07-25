@@ -6,6 +6,8 @@ const matchingService = require('../services/matchingService');
 const { notify } = require('../services/notificationService');
 const smsService = require('../services/smsService');
 const { createCertificateForDonor } = require('./certificateController');
+const Settings = require('../models/Settings');
+const emailService = require('../services/emailService');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,11 +39,10 @@ const sanitizeRequests = (requests, userId, role) => {
       const isOwner = createdById && createdById.toString() === userId.toString();
 
       if (isOwner) {
-        // Owner sees their own request info, but must not see assigned donor's phone/email
+        // Owner sees their own request info. They CAN see the assigned donor's phone to coordinate.
         if (r.assignedDonor) {
           const donorObj = r.assignedDonor.toObject ? r.assignedDonor.toObject() : { ...r.assignedDonor };
-          delete donorObj.phone;
-          delete donorObj.email;
+          delete donorObj.email; // Still hide email
           r.assignedDonor = donorObj;
         }
         if (r.matchedDonors) {
@@ -53,13 +54,25 @@ const sanitizeRequests = (requests, userId, role) => {
           });
         }
       } else {
-        // Non-owner / Donor: Cannot see requester's contact details, only name.
-        r.contactPhone = 'Admin Mediated';
-        if (r.createdBy) {
-          const creatorObj = r.createdBy.toObject ? r.createdBy.toObject() : { ...r.createdBy };
-          delete creatorObj.phone;
-          delete creatorObj.email;
-          r.createdBy = creatorObj;
+        const isAssignedDonor = r.assignedDonor && 
+            (r.assignedDonor._id ? r.assignedDonor._id.toString() : r.assignedDonor.toString()) === userId.toString();
+
+        if (isAssignedDonor) {
+          // Assigned donor can see requester's contact details (phone), but hide email
+          if (r.createdBy) {
+            const creatorObj = r.createdBy.toObject ? r.createdBy.toObject() : { ...r.createdBy };
+            delete creatorObj.email;
+            r.createdBy = creatorObj;
+          }
+        } else {
+          // Non-owner / Unassigned Donor: Cannot see requester's contact details, only name.
+          r.contactPhone = 'Admin Mediated';
+          if (r.createdBy) {
+            const creatorObj = r.createdBy.toObject ? r.createdBy.toObject() : { ...r.createdBy };
+            delete creatorObj.phone;
+            delete creatorObj.email;
+            r.createdBy = creatorObj;
+          }
         }
         // Cannot see other donors' phone/email (only their own if they are assigned)
         if (r.assignedDonor) {
@@ -153,6 +166,32 @@ const createRequest = [
         // Matching errors must NOT block the API response
         console.error('[createRequest] Matching error (non-fatal):', matchErr.message);
       }
+
+      // ── Send Email Notifications (fire-and-forget) ──────────────────────
+      (async () => {
+        try {
+          const settings = await Settings.findOne();
+          if (settings && settings.contacts) {
+            const emails = settings.contacts
+              .map(c => c.email)
+              .filter(email => email && email.trim() !== '');
+            if (emails.length > 0) {
+              emailService.sendNewRequestEmail(request, emails).catch(e => {
+                console.error('[createRequest] Email service internal error:', e.message);
+              });
+            }
+          }
+        } catch (emailErr) {
+          console.error('[createRequest] Email fetch/notification error:', emailErr.message);
+        }
+
+        // Send confirmation to requester
+        if (req.user && req.user.email) {
+          emailService.sendRequesterConfirmationEmail(request, req.user.email).catch(e => {
+            console.error('[createRequest] Requester confirmation email error:', e.message);
+          });
+        }
+      })();
 
       res.status(201).json({ request, message: 'Request created — pending admin approval' });
     } catch (error) {

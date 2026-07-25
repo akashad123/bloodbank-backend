@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { body } = require('express-validator');
 const User = require('../models/User');
 const validate = require('../middleware/validate');
+const { incrementLoginFailure, resetLoginSuccess } = require('../middleware/loginRateLimiter');
 
 // ─── Token Generator ──────────────────────────────────────────────────────────
 const generateToken = (id) =>
@@ -134,11 +135,13 @@ const login = [
       if (phone && !email) {
         const user = await User.findOne({ phone: phone.trim() });
         if (!user) {
+          incrementLoginFailure(req.ip, phone);
           return res.status(404).json({
             message: 'This mobile number is not registered. Please register first.',
           });
         }
 
+        resetLoginSuccess(req.ip, phone);
         const token = generateToken(user._id);
         return res.json({ token, user: user.toSafeObject() });
       }
@@ -147,19 +150,23 @@ const login = [
       if (email && password) {
         const user = await User.findOne({ email: email.toLowerCase().trim() });
         if (!user) {
+          incrementLoginFailure(req.ip, email);
           return res.status(401).json({ message: 'Invalid email or password' });
         }
 
         const isMatch = await user.matchPassword(password);
         if (!isMatch) {
+          incrementLoginFailure(req.ip, email);
           return res.status(401).json({ message: 'Invalid email or password' });
         }
 
+        resetLoginSuccess(req.ip, email);
         const token = generateToken(user._id);
         return res.json({ token, user: user.toSafeObject() });
       }
 
       // ── Neither flow satisfied ────────────────────────────────────────
+      incrementLoginFailure(req.ip, phone || email || 'unknown');
       return res.status(400).json({
         message: 'Please provide a phone number, or email and password to sign in.',
       });
