@@ -36,14 +36,20 @@ const fmtDate = (d) => `${fmtDateOnly(d)}, ${fmtTimeOnly(d)}`;
  * @param {Array<String>} emails - Array of coordinator email addresses
  */
 const sendNewRequestEmail = async (request, emails) => {
+  const timestamp = new Date().toISOString();
+  const reqId = String(request._id);
+  const createdById = request.createdBy?._id ? String(request.createdBy._id) : String(request.createdBy || 'UNKNOWN');
+
+  console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 11: Inside sendNewRequestEmail(). Recipient count: ${emails?.length}. SMTP Configured: ${isSmtpConfigured() ? 'YES' : 'NO'}`);
+
   try {
     if (!emails || emails.length === 0) {
-      console.log('[emailService] No valid coordinator emails found. Skipping email notification.');
+      console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 11 WARN: No valid coordinator emails passed. Skipping.`);
       return;
     }
 
     if (!isSmtpConfigured()) {
-      console.warn('[emailService] SMTP credentials are not configured in .env. Skipping email notification.');
+      console.warn(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 11 WARN: SMTP credentials are not configured in process.env. Skipping.`);
       return;
     }
 
@@ -100,12 +106,14 @@ RedConnect`;
       text: textBody,
     };
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`[emailService] New request email sent successfully. MessageId: ${info.messageId}`);
+    console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 12: SMTP sendMail() initiated. From: "${mailOptions.from}", To: "${mailOptions.to}", Subject: "${mailOptions.subject}"`);
     
+    const info = await transporter.sendMail(mailOptions);
+    
+    console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 13: SMTP response received. MessageId: ${info.messageId}, Response: "${info.response}"`);
   } catch (error) {
-    // Log the error but do not throw, as this is fire-and-forget
-    console.error('[emailService] Error sending new request email:', error.message);
+    console.error(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 13 ERROR: SMTP sendMail threw exception:`, error.message, error.stack);
+    throw error; // Re-throw to caller so step 10 promise handler captures it
   }
 };
 
