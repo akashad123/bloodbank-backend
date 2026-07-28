@@ -21,6 +21,10 @@ const settingsRoutes = require('./src/routes/settings');
 
 // ─── App Init ─────────────────────────────────────────────────────────
 const app = express();
+
+// Trust reverse proxy (e.g. Render / Heroku / Nginx) to properly handle X-Forwarded-For headers in rate limiters
+app.set('trust proxy', 1);
+
 const server = http.createServer(app);
 
 // ✅ Validate Production Environment Variables
