@@ -5,19 +5,42 @@ const isSmtpConfigured = () => {
   return !!(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS);
 };
 
-// Create reusable transporter object using the default SMTP transport
-const createTransporter = () => {
+let cachedTransporter = null;
+
+// Get or initialize reusable pooled transporter object
+const getTransporter = () => {
   if (!isSmtpConfigured()) return null;
-  
-  return nodemailer.createTransport({
+  if (cachedTransporter) return cachedTransporter;
+
+  const port = Number(process.env.SMTP_PORT) || 587;
+
+  cachedTransporter = nodemailer.createTransport({
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
     host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    secure: process.env.SMTP_PORT == 465, // true for 465, false for other ports
+    port: port,
+    secure: port === 465, // true for port 465, false for 587/25
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,   // 10 seconds
+    socketTimeout: 15000,     // 15 seconds
   });
+
+  return cachedTransporter;
+};
+
+// Reset cached transporter on fatal connection failures
+const resetTransporter = () => {
+  if (cachedTransporter) {
+    try {
+      cachedTransporter.close();
+    } catch (_) {}
+    cachedTransporter = null;
+  }
 };
 
 const fmtDateOnly = (d) =>
@@ -53,7 +76,7 @@ const sendNewRequestEmail = async (request, emails) => {
       return;
     }
 
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     
     // Fallback requester name if createdBy is not populated yet
     const requesterName = request.createdBy?.name || request.contactName || 'A requester';
@@ -113,6 +136,18 @@ RedConnect`;
     console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 13: SMTP response received. MessageId: ${info.messageId}, Response: "${info.response}"`);
   } catch (error) {
     console.error(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 13 ERROR: SMTP sendMail threw exception:`, error.message, error.stack);
+    
+    // Reset pooled transporter on connection failure so subsequent requests recreate socket pool
+    if (
+      error.code === 'ETIMEDOUT' ||
+      error.code === 'ECONNRESET' ||
+      error.code === 'ECONNREFUSED' ||
+      error.message?.includes('timeout')
+    ) {
+      console.warn(`[${timestamp}] Resetting SMTP transporter due to connection error: ${error.code || error.message}`);
+      resetTransporter();
+    }
+    
     throw error; // Re-throw to caller so step 10 promise handler captures it
   }
 };
@@ -136,7 +171,7 @@ const sendRequesterConfirmationEmail = async (request, userEmail) => {
       return;
     }
 
-    const transporter = createTransporter();
+    const transporter = getTransporter();
     
     // Fallback requester name
     const requesterName = request.createdBy?.name || request.contactName || 'Requester';
@@ -170,6 +205,14 @@ RedConnect`;
     
   } catch (error) {
     console.error('[emailService] Error sending requester confirmation email:', error.message);
+    if (
+      error.code === 'ETIMEDOUT' ||
+      error.code === 'ECONNRESET' ||
+      error.code === 'ECONNREFUSED' ||
+      error.message?.includes('timeout')
+    ) {
+      resetTransporter();
+    }
   }
 };
 
