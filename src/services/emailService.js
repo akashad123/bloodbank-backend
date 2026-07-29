@@ -6,10 +6,10 @@
  */
 
 const fmtDateOnly = (d) =>
-  new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
 const fmtTimeOnly = (d) =>
-  new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
 
 const fmtDate = (d) => `${fmtDateOnly(d)}, ${fmtTimeOnly(d)}`;
 

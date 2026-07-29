@@ -13,11 +13,11 @@ const emailService = require('../services/emailService');
 
 /** Format date only — "29 Apr 2026" */
 const fmtDateOnly = (d) =>
-  new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
 /** Format time only — "03:45 PM" */
 const fmtTimeOnly = (d) =>
-  new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
 
 /** Format full datetime — "29 Apr 2026, 03:45 PM" */
 const fmtDate = (d) => `${fmtDateOnly(d)}, ${fmtTimeOnly(d)}`;
