@@ -1,47 +1,9 @@
-const nodemailer = require('nodemailer');
-
-// Check if SMTP is configured
-const isSmtpConfigured = () => {
-  return !!(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS);
-};
-
-let cachedTransporter = null;
-
-// Get or initialize reusable pooled transporter object
-const getTransporter = () => {
-  if (!isSmtpConfigured()) return null;
-  if (cachedTransporter) return cachedTransporter;
-
-  const port = Number(process.env.SMTP_PORT) || 587;
-
-  cachedTransporter = nodemailer.createTransport({
-    pool: true,
-    maxConnections: 5,
-    maxMessages: 100,
-    host: process.env.SMTP_HOST,
-    port: port,
-    secure: port === 465, // true for port 465, false for 587/25
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    connectionTimeout: 10000, // 10 seconds
-    greetingTimeout: 10000,   // 10 seconds
-    socketTimeout: 15000,     // 15 seconds
-  });
-
-  return cachedTransporter;
-};
-
-// Reset cached transporter on fatal connection failures
-const resetTransporter = () => {
-  if (cachedTransporter) {
-    try {
-      cachedTransporter.close();
-    } catch (_) {}
-    cachedTransporter = null;
-  }
-};
+/**
+ * Brevo Transactional Email REST API Service
+ * 
+ * Replaces legacy Nodemailer SMTP with Brevo's v3 Transactional Email REST API over HTTPS (Port 443).
+ * Eliminates cloud egress SMTP connection timeouts (ETIMEDOUT) on Render.
+ */
 
 const fmtDateOnly = (d) =>
   new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -50,6 +12,73 @@ const fmtTimeOnly = (d) =>
   new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
 const fmtDate = (d) => `${fmtDateOnly(d)}, ${fmtTimeOnly(d)}`;
+
+/**
+ * Helper to extract name and email from EMAIL_FROM environment variable.
+ * Example: '"RedConnect Blood Bank" <akash.ad@lead.ac.in>' -> { name: 'RedConnect Blood Bank', email: 'akash.ad@lead.ac.in' }
+ */
+const getSender = () => {
+  const rawSender = process.env.EMAIL_FROM;
+  if (!rawSender) {
+    return { name: 'RedConnect Blood Bank', email: 'no-reply@redconnect.in' };
+  }
+  const match = rawSender.match(/^(?:"?([^"]*)"?\s+)?<?([^>]+)>?$/);
+  if (match) {
+    const name = match[1] ? match[1].trim() : 'RedConnect Blood Bank';
+    const email = match[2].trim();
+    return { name, email };
+  }
+  return { name: 'RedConnect Blood Bank', email: rawSender.trim() };
+};
+
+/**
+ * Dispatches an email via Brevo's Transactional Email REST API (https://api.brevo.com/v3/smtp/email).
+ * 
+ * @param {Object} params
+ * @param {Object} params.sender - { name, email }
+ * @param {Array<Object>} params.to - Array of recipient objects [{ email, name? }]
+ * @param {String} params.subject - Email subject
+ * @param {String} params.textContent - Plain text content
+ * @param {String} [params.requestId] - Associated blood request ID for diagnostics
+ */
+const sendBrevoEmail = async ({ sender, to, subject, textContent, requestId }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    console.warn('[emailService] BREVO_API_KEY environment variable is missing. Skipping email notification.');
+    return null;
+  }
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': apiKey,
+    },
+    body: JSON.stringify({
+      sender,
+      to,
+      subject,
+      textContent,
+    }),
+  });
+
+  const responseData = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    console.error('[emailService] Brevo API Email Delivery Failed:', {
+      status: response.status,
+      statusText: response.statusText,
+      requestId: requestId || 'N/A',
+      recipients: to.map(r => r.email).join(', '),
+      brevoResponse: responseData,
+    });
+    return null;
+  }
+
+  const messageId = responseData.messageId || responseData.messageIds?.[0] || 'N/A';
+  console.log(`[emailService] Brevo API email sent successfully | Request ID: ${requestId || 'N/A'} | Recipients: ${to.map(r => r.email).join(', ')} | Message ID: ${messageId}`);
+  return responseData;
+};
 
 /**
  * Sends a notification email to official coordinators about a new blood request.
@@ -63,27 +92,22 @@ const sendNewRequestEmail = async (request, emails) => {
   const reqId = String(request._id);
   const createdById = request.createdBy?._id ? String(request.createdBy._id) : String(request.createdBy || 'UNKNOWN');
 
-  console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 11: Inside sendNewRequestEmail(). Recipient count: ${emails?.length}. SMTP Configured: ${isSmtpConfigured() ? 'YES' : 'NO'}`);
-
   try {
     if (!emails || emails.length === 0) {
       console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 11 WARN: No valid coordinator emails passed. Skipping.`);
       return;
     }
 
-    if (!isSmtpConfigured()) {
-      console.warn(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 11 WARN: SMTP credentials are not configured in process.env. Skipping.`);
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) {
+      console.warn(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 11 WARN: BREVO_API_KEY environment variable is missing in process.env. Skipping.`);
       return;
     }
 
-    const transporter = getTransporter();
-    
-    // Fallback requester name if createdBy is not populated yet
     const requesterName = request.createdBy?.name || request.contactName || 'A requester';
     const urgencyText = request.urgency === 'emergency' ? 'Urgent' : 'Normal';
     const requestDate = request.createdAt ? fmtDate(request.createdAt) : fmtDate(new Date());
 
-    // Generate request link using APP_URL
     const appUrl = process.env.APP_URL || 'http://localhost:5173';
     const requestLink = `${appUrl}/requests/${request._id}`;
 
@@ -122,33 +146,28 @@ Please log in to the RedConnect Admin Panel and assign a suitable donor as soon 
 Regards,
 RedConnect`;
 
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || '"RedConnect BloodBank" <no-reply@redconnect.in>',
-      to: emails.join(', '), // send to all coordinators
-      subject: subject,
-      text: textBody,
-    };
+    const sender = getSender();
+    const to = emails.map((email) => ({ email: email.trim() }));
 
-    console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 12: SMTP sendMail() initiated. From: "${mailOptions.from}", To: "${mailOptions.to}", Subject: "${mailOptions.subject}"`);
-    
-    const info = await transporter.sendMail(mailOptions);
-    
-    console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 13: SMTP response received. MessageId: ${info.messageId}, Response: "${info.response}"`);
-  } catch (error) {
-    console.error(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 13 ERROR: SMTP sendMail threw exception:`, error.message, error.stack);
-    
-    // Reset pooled transporter on connection failure so subsequent requests recreate socket pool
-    if (
-      error.code === 'ETIMEDOUT' ||
-      error.code === 'ECONNRESET' ||
-      error.code === 'ECONNREFUSED' ||
-      error.message?.includes('timeout')
-    ) {
-      console.warn(`[${timestamp}] Resetting SMTP transporter due to connection error: ${error.code || error.message}`);
-      resetTransporter();
+    console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 12: Sending email via Brevo REST API to [${to.map(r => r.email).join(', ')}]...`);
+
+    const result = await sendBrevoEmail({
+      sender,
+      to,
+      subject,
+      textContent: textBody,
+      requestId: reqId,
+    });
+
+    if (result) {
+      console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 14: Completed sendNewRequestEmail execution via Brevo API.`);
     }
-    
-    throw error; // Re-throw to caller so step 10 promise handler captures it
+  } catch (error) {
+    console.error(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Error sending new request email via Brevo API:`, {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    });
   }
 };
 
@@ -166,16 +185,13 @@ const sendRequesterConfirmationEmail = async (request, userEmail) => {
       return;
     }
 
-    if (!isSmtpConfigured()) {
-      console.warn('[emailService] SMTP credentials are not configured in .env. Skipping confirmation email.');
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) {
+      console.warn('[emailService] BREVO_API_KEY environment variable is missing. Skipping confirmation email.');
       return;
     }
 
-    const transporter = getTransporter();
-    
-    // Fallback requester name
     const requesterName = request.createdBy?.name || request.contactName || 'Requester';
-
     const subject = `Blood Request Submitted Successfully`;
     
     const textBody = `Hello ${requesterName},
@@ -193,30 +209,26 @@ You can track the request from your dashboard.
 Thank you,
 RedConnect`;
 
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || '"RedConnect BloodBank" <no-reply@redconnect.in>',
-      to: userEmail,
-      subject: subject,
-      text: textBody,
-    };
+    const sender = getSender();
+    const to = [{ email: userEmail.trim() }];
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`[emailService] Requester confirmation email sent successfully. MessageId: ${info.messageId}`);
-    
+    await sendBrevoEmail({
+      sender,
+      to,
+      subject,
+      textContent: textBody,
+      requestId: String(request._id),
+    });
   } catch (error) {
-    console.error('[emailService] Error sending requester confirmation email:', error.message);
-    if (
-      error.code === 'ETIMEDOUT' ||
-      error.code === 'ECONNRESET' ||
-      error.code === 'ECONNREFUSED' ||
-      error.message?.includes('timeout')
-    ) {
-      resetTransporter();
-    }
+    console.error('[emailService] Error sending requester confirmation email via Brevo API:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    });
   }
 };
 
 module.exports = {
   sendNewRequestEmail,
-  sendRequesterConfirmationEmail
+  sendRequesterConfirmationEmail,
 };
