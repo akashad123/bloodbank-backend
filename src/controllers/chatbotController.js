@@ -93,7 +93,7 @@ const sendMessage = async (req, res) => {
     userSessions[userId] = userSessions[userId].slice(-6);
 
     // Add backend debug
-    console.log("USER:", message);
+
 
     // 2) USE RULE FIRST
     const instant = ruleReply(message);

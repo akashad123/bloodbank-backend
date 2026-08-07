@@ -76,7 +76,7 @@ const sendBrevoEmail = async ({ sender, to, subject, textContent, requestId }) =
   }
 
   const messageId = responseData.messageId || responseData.messageIds?.[0] || 'N/A';
-  console.log(`[emailService] Brevo API email sent successfully | Request ID: ${requestId || 'N/A'} | Recipients: ${to.map(r => r.email).join(', ')} | Message ID: ${messageId}`);
+
   return responseData;
 };
 
@@ -94,7 +94,7 @@ const sendNewRequestEmail = async (request, emails) => {
 
   try {
     if (!emails || emails.length === 0) {
-      console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 11 WARN: No valid coordinator emails passed. Skipping.`);
+
       return;
     }
 
@@ -149,7 +149,7 @@ RedConnect`;
     const sender = getSender();
     const to = emails.map((email) => ({ email: email.trim() }));
 
-    console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 12: Sending email via Brevo REST API to [${to.map(r => r.email).join(', ')}]...`);
+
 
     const result = await sendBrevoEmail({
       sender,
@@ -160,7 +160,7 @@ RedConnect`;
     });
 
     if (result) {
-      console.log(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Step 14: Completed sendNewRequestEmail execution via Brevo API.`);
+
     }
   } catch (error) {
     console.error(`[${timestamp}] [USER:${createdById}] [REQ:${reqId}] Error sending new request email via Brevo API:`, {
@@ -181,7 +181,7 @@ RedConnect`;
 const sendRequesterConfirmationEmail = async (request, userEmail) => {
   try {
     if (!userEmail) {
-      console.log('[emailService] No requester email found. Skipping confirmation email.');
+
       return;
     }
 

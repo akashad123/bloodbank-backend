@@ -28,7 +28,7 @@ const createCertificateForDonor = async ({ donorId, donorName, bloodGroup, distr
       donationDate: donationDate || new Date(),
     });
 
-    console.log(`[Certificate] Created: ${certificateId} for donor ${donorName} (${donorId})`);
+
     return cert;
   } catch (err) {
     // Non-fatal — log but don't crash the fulfillment flow

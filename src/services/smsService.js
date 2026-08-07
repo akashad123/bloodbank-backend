@@ -42,7 +42,7 @@ const sendSMS = async (to, message) => {
       body: message,
     });
 
-    console.log(`Status SMS sent to ${formattedPhone}: ${result.sid}`);
+
     return result;
   } catch (error) {
     // Catch error so we don't break the main API flow

@@ -76,7 +76,7 @@ const incrementLoginFailure = (ip, identity) => {
   if (attemptData.lockLevel > 0 && (attemptData.count === 5 || attemptData.count === 8 || attemptData.count === 10)) {
     console.warn(`[Security] Login lockout (Level ${attemptData.lockLevel}) applied for IP: ${ip} after ${attemptData.count} failed attempts.`);
   } else {
-    console.log(`[Security] Failed login attempt from IP: ${ip}. Count: ${attemptData.count}`);
+
   }
 };
 
@@ -87,7 +87,7 @@ const resetLoginSuccess = (ip, identity) => {
   const key = getTrackingKey(ip, identity);
   if (loginFailures.has(key)) {
     loginFailures.delete(key);
-    console.log(`[Security] Successful login from IP: ${ip}. Cleared rate limit lock.`);
+
   }
 };
 

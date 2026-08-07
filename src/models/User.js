@@ -84,6 +84,15 @@ userSchema.pre('save', async function () {
     this.isEligibleToDonate = false;
     this.donorStatus = null;
   } else {
+    // ENFORCE rule: age >= 18 AND weight >= 50 => Donor Account. Else => Normal Account.
+    if (this.donorEligibility && this.donorEligibility.eligibilityStatus !== null) {
+      if (this.donorEligibility.ageConfirmed === true && this.donorEligibility.weight >= 50) {
+        this.donorEligibility.eligibilityStatus = 'eligible';
+      } else {
+        this.donorEligibility.eligibilityStatus = 'ineligible';
+      }
+    }
+
     const screeningStatus = this.donorEligibility?.eligibilityStatus;
 
     if (!screeningStatus) {

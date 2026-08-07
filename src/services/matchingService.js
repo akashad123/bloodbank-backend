@@ -23,7 +23,7 @@ const matchAndNotify = async (request, io) => {
     });
 
     if (donors.length === 0) {
-      console.log(`No matching donors found for request ${request._id}`);
+
       return { matched: 0 };
     }
 
@@ -76,7 +76,7 @@ const matchAndNotify = async (request, io) => {
 
     await Promise.allSettled(alertPromises); // Don't fail if Twilio errors
 
-    console.log(`Matched ${donors.length} donors for request ${request._id}`);
+
     return { matched: donors.length };
   } catch (error) {
     console.error('Matching service error:', error);

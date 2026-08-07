@@ -119,10 +119,10 @@ const createRequest = [
     const timestamp = () => new Date().toISOString();
     const userId = req.user?._id ? String(req.user._id) : 'UNAUTHENTICATED';
     
-    console.log(`[${timestamp()}] [USER:${userId}] [REQ:PENDING] Step 1: Request received. Body:`, JSON.stringify(req.body));
+
 
     try {
-      console.log(`[${timestamp()}] [USER:${userId}] [REQ:PENDING] Step 2: Validation passed.`);
+
 
       const { bloodGroup, units, hospital, district, urgency, contactName, contactPhone, additionalInfo } =
         req.body;
@@ -140,11 +140,11 @@ const createRequest = [
       });
 
       const reqId = String(request._id);
-      console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 3: Request.create completed.`);
+
 
       // ── Match donors at creation time ────────────────────────────────────
       try {
-        console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 4: Donor matching started.`);
+
         const donors = await User.find({
           bloodGroup: request.bloodGroup,
           district: request.district,
@@ -171,9 +171,7 @@ const createRequest = [
               smsService.sendSMS(donor.phone, `${notifTitle}\n${notifMsg}`).catch(() => {})
             );
 
-          console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 5: Donor matching finished. Matched & notified ${donors.length} donors.`);
         } else {
-          console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 5: Donor matching finished. 0 donors matched.`);
         }
       } catch (matchErr) {
         // Matching errors must NOT block the API response
@@ -183,30 +181,16 @@ const createRequest = [
       // ── Send Email Notifications (fire-and-forget) ──────────────────────
       (async () => {
         try {
-          console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 6: Preparing coordinator email. User Role: ${req.user?.role}, Email: ${req.user?.email || 'NONE'}`);
-
-          console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 7: Settings.findOne executed.`);
           const settings = await Settings.findOne();
           
-          console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 8: Settings returned. Document:`, settings ? `ID: ${settings._id}, Contacts count: ${settings.contacts?.length || 0}` : 'NULL');
-
           if (settings && settings.contacts) {
-            console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 8b: Raw contacts in settings:`, JSON.stringify(settings.contacts));
             const emails = settings.contacts
               .map(c => c.email)
               .filter(email => email && email.trim() !== '');
             
-            console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 9: Coordinator emails extracted (${emails.length}):`, JSON.stringify(emails));
-
             if (emails.length > 0) {
-              console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 10: Calling sendNewRequestEmail()...`);
               await emailService.sendNewRequestEmail(request, emails);
-              console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 14: Completed sendNewRequestEmail execution.`);
-            } else {
-              console.warn(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 9 WARN: SKIPPED coordinator email because extracted email list is empty.`);
             }
-          } else {
-            console.warn(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Step 8 WARN: SKIPPED coordinator email because settings or settings.contacts is missing.`);
           }
         } catch (emailErr) {
           console.error(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] TOP-LEVEL ASYNC EMAIL ERROR:`, emailErr.message, emailErr.stack);
@@ -215,11 +199,7 @@ const createRequest = [
         // Send confirmation to requester
         try {
           if (req.user && req.user.email) {
-            console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Calling sendRequesterConfirmationEmail for ${req.user.email}...`);
             await emailService.sendRequesterConfirmationEmail(request, req.user.email);
-            console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Requester confirmation email completed.`);
-          } else {
-            console.log(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] SKIPPED requester confirmation email: req.user.email is missing/falsy (${req.user?.email}).`);
           }
         } catch (reqConfirmErr) {
           console.error(`[${timestamp()}] [USER:${userId}] [REQ:${reqId}] Requester confirmation email error:`, reqConfirmErr.message, reqConfirmErr.stack);

@@ -57,7 +57,7 @@ Your help can save a life. 🙏
       body: messageBody,
     });
 
-    console.log(`WhatsApp sent to ${phone}: ${result.sid}`);
+
     return result;
   } catch (error) {
     console.error(`WhatsApp failed for ${phone}:`, error.message);
@@ -88,7 +88,7 @@ const sendSMSAlert = async (phone, data) => {
       body: messageBody,
     });
 
-    console.log(`SMS sent to ${phone}: ${result.sid}`);
+
     return result;
   } catch (error) {
     console.error(`SMS failed for ${phone}:`, error.message);
