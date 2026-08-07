@@ -135,5 +135,11 @@ userSchema.methods.toSafeObject = function () {
   delete obj.passwordHash;
   return obj;
 };
+// ─── Indexes for Performance ──────────────────────────────────────────────────
+// Donor matching index
+userSchema.index({ district: 1, bloodGroup: 1, isEligibleToDonate: 1, availabilityStatus: 1 });
+// Admin filtering indexes
+userSchema.index({ district: 1, role: 1 });
+userSchema.index({ district: 1, isQualifiedDonor: 1 });
 
 module.exports = mongoose.model('User', userSchema);

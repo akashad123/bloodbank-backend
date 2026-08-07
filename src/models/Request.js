@@ -28,5 +28,10 @@ const requestSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+// ─── Indexes for Performance ──────────────────────────────────────────────────
+requestSchema.index({ district: 1, status: 1 });
+requestSchema.index({ district: 1, bloodGroup: 1 });
+requestSchema.index({ createdBy: 1 });
+requestSchema.index({ assignedDonor: 1, status: 1 });
 
 module.exports = mongoose.model('Request', requestSchema);

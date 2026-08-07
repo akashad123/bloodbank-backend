@@ -26,5 +26,7 @@ const notificationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+// ─── Indexes for Performance ──────────────────────────────────────────────────
+notificationSchema.index({ recipient: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

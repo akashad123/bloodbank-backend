@@ -11,8 +11,7 @@ const matchAndNotify = async (request, io) => {
     // Find matching donors
     const districtRegex = new RegExp(`^${request.district.trim()}$`, 'i');
     
-    let bgQuery = request.bloodGroup;
-    if (bgQuery === 'AB Positive' || bgQuery === 'AB_POSITIVE') bgQuery = 'AB+';
+    const bgQuery = request.bloodGroup;
 
     const donors = await User.find({
       bloodGroup: bgQuery,

@@ -696,8 +696,21 @@ const assignDonor = async (req, res) => {
       return res.status(400).json({ message: 'Can only assign a donor to pending, assigned, or accepted requests' });
     }
 
-    const donor = await User.findById(donorId).select('name phone district bloodGroup');
+    const donor = await User.findById(donorId).select('name phone district bloodGroup isQualifiedDonor isEligibleToDonate availabilityStatus');
     if (!donor) return res.status(404).json({ message: 'Donor not found' });
+
+    if (donor.bloodGroup !== request.bloodGroup) {
+      return res.status(400).json({ message: 'Donor blood group must exactly match the requested blood group.' });
+    }
+
+    const districtRegex = new RegExp(`^${request.district.trim()}$`, 'i');
+    if (!districtRegex.test(donor.district)) {
+      return res.status(400).json({ message: 'Donor must be from the same district as the request.' });
+    }
+
+    if (!donor.isQualifiedDonor || !donor.isEligibleToDonate || !donor.availabilityStatus) {
+      return res.status(400).json({ message: 'Donor is not currently eligible or available to donate.' });
+    }
 
     request.assignedDonor = donorId;
     request.assignedAt = new Date();
@@ -774,10 +787,7 @@ const getRequestMatches = async (req, res) => {
     // Using RegExp for case-insensitive matching in case of data inconsistencies
     const districtRegex = new RegExp(`^${request.district.trim()}$`, 'i');
     
-    // For blood group, we might have things like "AB Positive", so let's use exact match but case-insensitive
-    // The strict enum should protect us, but this ensures safety against bad data
-    let bgQuery = request.bloodGroup;
-    if (bgQuery === 'AB Positive' || bgQuery === 'AB_POSITIVE') bgQuery = 'AB+';
+    const bgQuery = request.bloodGroup;
     
     const donors = await User.find({
       bloodGroup: bgQuery,

@@ -43,5 +43,7 @@ const certificateSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+// ─── Indexes for Performance ──────────────────────────────────────────────────
+certificateSchema.index({ donorId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Certificate', certificateSchema);
